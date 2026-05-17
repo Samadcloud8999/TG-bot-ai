@@ -73,7 +73,7 @@ const startController = {
     const text =
       `🏠 *Главное меню*\n\n` +
       `Привет, ${name}! Что будем делать?\n\n` +
-      `📊 Использовано сегодня: ${user.used_today || 0} / ${user.daily_limit || 10}`;
+      `📊 Использовано сегодня: ${user.used_today || 0} / ${user.daily_limit || 200}`;
 
     try {
       await ctx.editMessageText(text, {

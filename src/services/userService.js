@@ -37,7 +37,7 @@ const userService = {
     // Создаём нового пользователя
     const adminIds = (process.env.ADMIN_IDS || '').split(',').map(id => parseInt(id.trim()));
     const isAdmin  = adminIds.includes(tgUser.telegram_id);
-    const limit    = parseInt(process.env.FREE_DAILY_LIMIT) || 10;
+    const limit    = parseInt(process.env.FREE_DAILY_LIMIT) || 200;
 
     const result = await query(
       `INSERT INTO users
@@ -104,15 +104,17 @@ const userService = {
    * Получить статистику пользователя
    */
   async getStats(userId) {
-    const [messagesRes, notesRes, quizzesRes] = await Promise.all([
+    const [messagesRes, notesRes, quizzesRes, photoNotesRes] = await Promise.all([
       query('SELECT COUNT(*) FROM message_history WHERE user_id = $1', [userId]),
       query('SELECT COUNT(*) FROM notes          WHERE user_id = $1', [userId]),
       query('SELECT COUNT(*) FROM quizzes        WHERE user_id = $1 AND completed = TRUE', [userId]),
+      query('SELECT COUNT(*) FROM photo_notes   WHERE user_id = $1', [userId]),
     ]);
     return {
       messages: parseInt(messagesRes.rows[0].count),
       notes:    parseInt(notesRes.rows[0].count),
       quizzes:  parseInt(quizzesRes.rows[0].count),
+      photos:   parseInt(photoNotesRes.rows[0].count),
     };
   },
 
@@ -141,7 +143,8 @@ const userService = {
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS new_week,
         (SELECT COUNT(*) FROM message_history)               AS total_messages,
         (SELECT COUNT(*) FROM notes)                         AS total_notes,
-        (SELECT COUNT(*) FROM quizzes)                       AS total_quizzes
+        (SELECT COUNT(*) FROM quizzes)                       AS total_quizzes,
+        (SELECT COUNT(*) FROM photo_notes)                   AS total_photo_notes
       FROM users
     `);
     return result.rows[0];
@@ -152,8 +155,8 @@ const userService = {
    */
   async setPlan(userId, plan) {
     const limit = plan === 'premium'
-      ? parseInt(process.env.PREMIUM_DAILY_LIMIT) || 100
-      : parseInt(process.env.FREE_DAILY_LIMIT)   || 10;
+      ? parseInt(process.env.PREMIUM_DAILY_LIMIT) || 2000
+      : parseInt(process.env.FREE_DAILY_LIMIT)   || 200;
 
     await query(
       'UPDATE users SET plan = $1, daily_limit = $2, updated_at = NOW() WHERE id = $3',

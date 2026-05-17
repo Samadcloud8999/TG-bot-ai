@@ -20,7 +20,10 @@ const keyboards = {
         Markup.button.callback('📚 История',        'menu_history'),
       ],
       [
-        Markup.button.callback('👤 Личный кабинет', 'menu_profile'),
+        Markup.button.callback('� Фото конспекты', 'menu_photo_notes'),
+      ],
+      [
+        Markup.button.callback('�👤 Личный кабинет', 'menu_profile'),
         Markup.button.callback('📊 Мои лимиты',     'menu_limits'),
       ],
       [
@@ -142,8 +145,11 @@ const keyboards = {
         Markup.button.callback('⚙️ Лимиты',        'admin_limits'),
       ],
       [
-        Markup.button.callback('🚫 Забанить',      'admin_ban'),
+        Markup.button.callback('� Платежи',       'admin_payments'),
         Markup.button.callback('📋 Логи',          'admin_logs'),
+      ],
+      [
+        Markup.button.callback('🚫 Забанить',      'admin_ban'),
       ],
       [
         Markup.button.callback('🔙 Главное меню',  'menu_back'),

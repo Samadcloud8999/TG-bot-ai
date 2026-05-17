@@ -64,6 +64,7 @@ const aiController = {
 
   async handleExplain(ctx) {
     await ctx.answerCbQuery();
+    ctx.session = ctx.session || {};
     ctx.session.awaitingExplainTopic = true;
 
     await ctx.reply(
@@ -113,6 +114,7 @@ const aiController = {
 
   async handleSummary(ctx) {
     await ctx.answerCbQuery();
+    ctx.session = ctx.session || {};
     ctx.session.awaitingSummaryText = true;
 
     await ctx.reply(
@@ -165,6 +167,7 @@ const aiController = {
 
   async handleQuizGen(ctx) {
     await ctx.answerCbQuery();
+    ctx.session = ctx.session || {};
     ctx.session.awaitingQuizTopic = true;
 
     await ctx.reply(
@@ -221,6 +224,7 @@ const aiController = {
 
   async handleTranslate(ctx) {
     await ctx.answerCbQuery();
+    ctx.session = ctx.session || {};
     ctx.session.awaitingTranslate = true;
 
     await ctx.reply(
@@ -267,6 +271,7 @@ const aiController = {
 
   async handleFreeChat(ctx) {
     await ctx.answerCbQuery();
+    ctx.session = ctx.session || {};
     ctx.session.aiChatMode = true;
 
     await ctx.reply(

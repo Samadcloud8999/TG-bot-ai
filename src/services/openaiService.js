@@ -1,183 +1,117 @@
-/**
- * src/services/openaiService.js
- * Все запросы к OpenAI API
- */
-
 const OpenAI = require('openai');
-const logger = require('../utils/logger');
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL  = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://api.groq.com/openai/v1',
+});
+const MODEL = process.env.OPENAI_MODEL || 'llama-3.1-8b-instant';
+const TEMPERATURE = 0.7;
+
+async function createChatCompletion(messages, maxTokens = 1000) {
+  const response = await openai.chat.completions.create({
+    model: MODEL,
+    messages,
+    temperature: TEMPERATURE,
+    max_tokens: maxTokens,
+  });
+
+  return response.choices?.[0]?.message?.content || '';
+}
+
+async function createTextCompletion(prompt, maxTokens = 1000) {
+  return createChatCompletion([{ role: 'user', content: prompt }], maxTokens);
+}
+
+function safeParseJSON(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const jsonMatch = raw.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
 
 const openaiService = {
-  /**
-   * Объяснить тему простыми словами
-   */
   async explainTopic(topic) {
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Ты — дружелюбный AI-репетитор. Объясняй темы максимально понятно, ' +
-            'используй аналогии, примеры из жизни, структурируй ответ. ' +
-            'Пиши на русском языке. Используй эмодзи для наглядности.',
-        },
-        {
-          role: 'user',
-          content: `Объясни мне простыми словами тему: "${topic}"`,
-        },
-      ],
-      max_tokens: 1500,
-      temperature: 0.7,
-    });
+    const prompt =
+      `Объясни простым и понятным языком тему «${topic}».` +
+      `\n\nСделай ответ структурированным и кратким, но информативным.`;
 
-    return response.choices[0].message.content;
+    return createTextCompletion(prompt, 1200);
   },
 
-  /**
-   * Сгенерировать конспект из текста
-   */
   async generateSummary(text) {
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Ты — эксперт по созданию образовательных конспектов. ' +
-            'Создавай структурированные, информативные конспекты. ' +
-            'Используй: заголовки, ключевые термины (жирным через **), ' +
-            'маркированные списки, выводы. Пиши на русском языке.',
-        },
-        {
-          role: 'user',
-          content: `Создай подробный конспект по следующему материалу:\n\n${text}`,
-        },
-      ],
-      max_tokens: 2000,
-      temperature: 0.5,
-    });
+    const prompt =
+      `Сделай краткий и понятный конспект по следующему тексту:\n\n${text}` +
+      `\n\nВыведи структурированный ответ с основными идеями и заголовками.`;
 
-    return response.choices[0].message.content;
+    return createTextCompletion(prompt, 1200);
   },
 
-  /**
-   * Сгенерировать тест/викторину по теме
-   * @returns {Array} массив вопросов
-   */
-  async generateQuiz(topic, questionsCount = 5) {
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Ты — создатель образовательных тестов. ' +
-            'Генерируй ТОЛЬКО JSON массив без каких-либо пояснений. ' +
-            'Формат каждого вопроса: ' +
-            '{ "question": "текст вопроса", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "пояснение" } ' +
-            'где correct — индекс правильного ответа (0-3).',
-        },
-        {
-          role: 'user',
-          content:
-            `Создай тест из ${questionsCount} вопросов по теме: "${topic}". ` +
-            'Верни только JSON массив.',
-        },
-      ],
-      max_tokens: 2000,
-      temperature: 0.8,
-    });
+  async generateQuiz(topic, count = 5) {
+    const prompt =
+      `Сгенерируй ${count} вопросов для теста по теме «${topic}».` +
+      `\n\nВерни только JSON-массив, где каждый объект содержит поля:` +
+      ` question, options, correct, explanation.` +
+      `\n\nПоле options должно быть массивом из 4 вариантов, correct — индекс правильного варианта (0-3).`;
 
-    const raw = response.choices[0].message.content;
-    // Очищаем от markdown блоков кода если есть
-    const cleaned = raw.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleaned);
+    const raw = await createTextCompletion(prompt, 1200);
+    const parsed = safeParseJSON(raw);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+
+    return raw
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map((line, index) => ({
+        question: line,
+        options: ['Вариант A', 'Вариант B', 'Вариант C', 'Вариант D'],
+        correct: 0,
+        explanation: '',
+      }))
+      .slice(0, count);
   },
 
-  /**
-   * Перевести текст
-   */
   async translateText(text, targetLang = 'английский') {
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: `Ты — профессиональный переводчик. Переводи точно и естественно на ${targetLang}.`,
-        },
-        {
-          role: 'user',
-          content: `Переведи следующий текст на ${targetLang}:\n\n${text}`,
-        },
-      ],
-      max_tokens: 1500,
-      temperature: 0.3,
-    });
+    const prompt =
+      `Переведи следующий текст на ${targetLang}:\n\n${text}`;
 
-    return response.choices[0].message.content;
+    return createTextCompletion(prompt, 1000);
   },
 
-  /**
-   * Свободный чат с AI (с историей сообщений)
-   * @param {Array} messages  массив { role, content }
-   */
-  async chat(messages) {
-    const systemMsg = {
-      role: 'system',
-      content:
-        'Ты — умный образовательный AI-ассистент. ' +
-        'Помогаешь с учёбой, отвечаешь на вопросы, объясняешь сложные темы. ' +
-        'Будь дружелюбным, точным и информативным. Пиши на русском языке.',
-    };
+  async chat(history) {
+    const messages = history.map(item => ({
+      role: item.role,
+      content: item.content,
+    }));
 
-    const response = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [systemMsg, ...messages],
-      max_tokens: 1000,
-      temperature: 0.7,
-    });
-
-    return response.choices[0].message.content;
+    return createChatCompletion(messages, 1200);
   },
 
-  /**
-   * Анализ фотографии через Vision API
-   */
-  async analyzePhoto(imageBase64, mimeType = 'image/jpeg') {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',   // Vision требует gpt-4o
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Ты — образовательный AI-ассистент. Анализируй изображения в образовательном контексте: ' +
-            'распознавай текст, формулы, схемы, диаграммы, объясняй что изображено. ' +
-            'Пиши на русском языке. Если это задача или вопрос — помоги решить.',
-        },
+  async analyzePhoto(base64, mimeType) {
+    const response = await openai.responses.create({
+      model: MODEL,
+      input: [
         {
           role: 'user',
           content: [
-            {
-              type: 'image_url',
-              image_url: {
-                url:    `data:${mimeType};base64,${imageBase64}`,
-                detail: 'high',
-              },
-            },
-            {
-              type: 'text',
-              text: 'Проанализируй это изображение. Если это учебный материал, задача или вопрос — помоги с ним.',
-            },
+            { type: 'input_text', text: 'Опиши изображение, выдели важные детали и дай понятный результат.' },
+            { type: 'input_image', image_url: `data:${mimeType};base64,${base64}` },
           ],
         },
       ],
-      max_tokens: 1500,
     });
 
-    return response.choices[0].message.content;
+    return response.output_text || '';
   },
 };
 
